@@ -1,0 +1,7 @@
+requests
+pywin32
+pycryptodome
+opencv-python
+pyautogui
+pillow
+numpy
