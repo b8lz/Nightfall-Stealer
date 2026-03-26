@@ -16,13 +16,20 @@
 
 ---
 
+### Update 1.0.1
+ - added cookie stealer
+ - added roblox cookie stealer
+    
+
 ### Features
 
+- grabs roblox account info
 - grabs discord tokens from discord and all major browsers
 - steals browser data:
   - passwords
   - credit Cards
   - browsing History
+  - cookies
 - discord account info:
   - username, ID, creation date
   - nitro type (basic / boost), expiration date and available boosts
