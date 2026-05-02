@@ -16,13 +16,15 @@
 
 ---
 
-### Update 1.0.1
- - added cookie stealer
- - added roblox cookie stealer
+### Update 1.0.2
+ - added persistence (only works when u compile it into a exe)
+ - added firefox stealing
     
 
 ### Features
 
+-persistence (only works when u compile it into a exe)
+-firefox stealing
 - grabs roblox account info
 - grabs discord tokens from discord and all major browsers
 - steals browser data:
